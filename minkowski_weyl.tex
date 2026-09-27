@@ -1,0 +1,224 @@
+\section{Minkowski-Weyl}
+
+Various types of polyhedral objects (polytopes, polyhedra, polyhedral cones)
+can be described in two complementary ways:
+\begin{enumerate}
+  \item A \emph{V-representation}, which describes it as the closure of a finite
+  set of atoms (vertices) with respect to some notion
+  (e.g., convex or conic combinations).
+  \item A \emph{H-representation}, which describes it as the finite intersection
+  of affine or linear halfspaces.
+\end{enumerate}
+
+The Minkowski--Weyl family of theorems says that these two types of
+representations define more or less the same classes of objects,
+sometimes under extra conditions such as boundedness.
+
+The main objective of our work group was to formalize the H-representation of polyhedra
+and proof the Minkowski-Weyl theorem which establishes its correspondence with the
+V-representation, which was already defined for polytopes and cones.
+
+One of the main obstacles we encountered in the formalization of both, the definition and
+the result was the question on how to deal with infinite dimensions.
+We are not aware of any existing convention on how the definition should generalize to this setting,
+and none of the participants in the workshop expressed a strong interest in how this generalization
+should be.
+Two main possibilities were discussed:
+\begin{enumerate}
+  \item Formalize the classical definition of an H-polyhedron, as the finite intersection of
+  halfspaces, and require finite dimension for some results, including the Minkowski-Weyl theorem.
+  \item Admit the intersection with an arbitrary affine subspace.
+  This makes it possible to formalize a version of the Minkowski-Weyl theorem that allows for
+  an infinite amount on equalities on the H-representation and an infinite-dimensional lineality
+  space on the V-representation, both of which collapse to the usual Minkowski-Weyl theorem on
+  finite dimension.
+\end{enumerate}
+
+\subsection{Naming}
+\label{subsec:mw:naming}
+One of Mathlib's principles is to avoid having multiple definitions for the same concept.
+The impact of a name choice affects not only usages of the definition, but also the way it is
+referred to in theorem and lemma names.
+
+An important question we considered in the workshop was whether there should be two separate names
+for \texttt{VPolytope}/\texttt{HPolytope}, as well as for \texttt{VPolyhedron}/\texttt{HPolyhedron}.
+%and \texttt{VCone}/\texttt{HCone}.
+After several discussions, we reached a consensus on the choice
+to define only \texttt{Polytope} and \texttt{Polyhedron} as the V-representation and
+H-representation respectively, and perhaps define the alternatives \texttt{HPolytope} and
+\texttt{VPolyhedron} only if it made a project's work easier.
+
+This decision is motivated by the fact each representation is the most natural for each concept.
+The H-representation of polytopes requires the notion of boundedness, either algebraic or
+topological, while the V-representation of polyhedra requires atoms of two types, vertices and
+rays.
+
+Regardless of this choice, API design should provide convenient access to the V-representation
+and H-representation of both definitions, which relies on the Minkowski--Weyl theorem we aim to
+formalize.
+
+On the topic of polyhedral cones, no such decision was reached because,
+on the one hand, both definitions are equally natural, and on the other hand,
+these notions are already defined in Mathlib as finitely generated (\texttt{PointedCone.FG}) and
+dually finitely generated cones (\texttt{PointedCone.DualFG}).
+
+\subsection{Hypotheses}
+\label{subsec:mw:hypotheses}
+Our work follows the previous efforts to formalize the Minkowski--Weyl theorem for cones,
+which was already stated in terms of finitely generated cones and dually finitely generated
+cones over fields.
+
+These results use the \texttt{PointedCone.FG} and \texttt{PointedCone.DualFG} definitions,
+which are defined for modules over a commutative ring.
+\begin{lstlisting}
+variable {R M N : Type*}
+variable [CommRing R] [PartialOrder R] [IsOrderedRing R]
+variable [AddCommGroup M] [Module R M]
+variable [AddCommGroup N] [Module R N]
+\end{lstlisting}
+
+The first one, \texttt{FG}, is simply an abbreviation for \texttt{Submodule.FG},
+in the sense that \texttt{PointedCone} is defined as a submodule over the nonnegative semiring.
+\begin{lstlisting}
+abbrev PointedCone (R E)
+    [Semiring R] [PartialOrder R] [IsOrderedRing R] [AddCommMonoid E] [Module R E] :=
+  Submodule {c : R // 0 ≤ c} E
+
+def Submodule.FG (N : Submodule R M) : Prop :=
+  ∃ S : Finset M, span R ↑S = N
+
+abbrev FG (C : PointedCone R M) : Prop := Submodule.FG C
+\end{lstlisting}
+
+On the other hand, \texttt{DualFG} is defined using a bilinear pairing \texttt{p}
+and the notion of dual cone.
+The dual cone of a set $S$ with respect to a bilinear pairing $p$ is the cone
+consisting of all points $y$ such that $0 \leq p(x, y)$ for all $x \in S$.
+
+\begin{lstlisting}
+/-- Bilinear map `(M × N) → R` -/
+variable {p : M →ₗ[R] N →ₗ[R] R}
+
+variable (p) in
+def dual (s : Set M) : PointedCone R N where
+  carrier := {y | ∀ ⦃x⦄, x ∈ s → 0 ≤ p x y}
+  sorry -- proofs that the carrier is a PointedCone
+\end{lstlisting}
+
+This bilinear pairing serves as the generalization of an inner product.
+A cone is dually finitely generated if it can be written as the dual cone of a finite set.
+
+\begin{lstlisting}
+variable (p) in
+def DualFG (C : PointedCone R N) : Prop := ∃ s : Finset M, dual p s = C
+\end{lstlisting}
+
+In the sense of the Minkowski--Weyl theorem, a finitely generated cone is
+a $V$-cone, as it is written as the conic closure of a finite set of (vertex) rays,
+while a dually finitely generated cone is an $H$-cone, as it can be understood
+as the intersection of finitely many linear halfspaces.
+
+The repository already contained some versions of the Minkowski--Weyl theorem
+in these terms, stated over a field.
+
+%\begin{proposition}
+A finitely generated cone $C$ over a field $\mathbb{k}$ can be rewritten
+as the intersection $D \cap S$ where $D$ is a dually finitely generated
+cone and $S$ is a finitely generated (linear) submodule.
+%\end{proposition}
+
+This holds even in infinite dimensional space because the result is proven
+within the finitely generated submodule.
+\begin{lstlisting}
+variable (p) [Fact p.SeparatingRight] in
+theorem FG.exists_dualfg_inf_submodule
+  {C : PointedCone 𝕜 N} (hC : C.FG) {S : Submodule 𝕜 N}
+  (hS : S.FG) (hCS : C ≤ S) : ∃ D : PointedCone 𝕜 N, D.DualFG p ∧ D ⊓ S = C := sorry
+\end{lstlisting}
+
+The hypothesis that $p$ is right-separating is there
+
+Assuming finite dimensions, the result has a simpler statement.
+\begin{lstlisting}
+-- Assume N is finite dimensional
+variable [Module.Finite 𝕜 N]
+
+variable (p) [Fact p.SeparatingRight] in
+lemma FG.dualfg {C : PointedCone 𝕜 N} (hC : C.FG) : C.DualFG p := sorry
+lemma DualFG.fg {C : PointedCone 𝕜 N} (hC : C.DualFG p) : C.FG := sorry
+\end{lstlisting}
+
+\subsection{Definitions}
+\label{subsec:mw:definitions}
+
+% H-polyhedron
+A \emph{polyhedron} is the finite intersection of halfspaces.
+Classically, polyhedra are defined in $\mathbb{R}^n$ using a matrix inequality.
+\[
+  P = \left\{ x \in \mathbb{R}^n \;\middle|\; A x \le b \right\},
+  \qquad A \in \mathbb{R}^{m \times n},\ b \in \mathbb{R}^m,
+\]
+
+Mathlib aims to avoid reliance on vector bases in statements and definitions,
+given that they are not canonical, so instead our definition uses halfspaces
+directly.
+
+\begin{lstlisting}
+variable {R : Type*} [CommRing R] [PartialOrder R] [IsOrderedRing R]
+variable {V : Type*} [AddCommGroup V] [Module R V]
+variable {V' : Type*} [AddCommGroup V'] [Module R V']
+variable {A : Type*} [AddTorsor V A]
+
+variable (R) in
+def IsHPolyhedron (P : Set A) : Prop :=
+    ∃ H : Finset (A →ᵃ[R] R), ∃ S : AffineSubspace R A,
+      P = (⋂ h ∈ H, h ⁻¹' Set.Ici (0 : R)) ∩ S
+\end{lstlisting}
+
+Similarly to the existing \texttt{IsPolytope} definition, we use an existential
+predicate on sets to define polyhedra.
+
+% H-polyhedral cone
+\begin{lstlisting}
+def IsHPolyhedral
+    (p : V' →ₗ[R] V →ₗ[R] R) (P : PointedCone R V) : Prop :=
+  ∃C : PointedCone R V, ∃S : Submodule R V,
+    C.DualFG p ∧ P = C ⊓ S
+\end{lstlisting}
+
+% Recession cone
+Given a convex set $P$, its \emph{recession cone} is the cone of unbounded
+directions of $P$.
+For general sets, this definition is usually required in its strictest form,
+that the recession cone added to each point of $P$ is contained in $P$.
+\[
+  \text{recess}(P) := \{ v \in V \mid
+    \forall p \in P, \forall \lambda \in \mathbb{R}_+,
+      p + \lambda v \in P \}
+\]
+
+Our formalization of this definition is straightforward.
+
+% -- Could be for `ConvexSet` (to avoid polluting the `Set` namespace)
+% -- This definiton assigns ⊤ as the recession cone of ∅
+% -- The ∀ could be an ∃ (we could prove it's equivalent for polytopes)
+% -- For `ConvexSet`, the ∀a is not necessary
+\begin{lstlisting}
+variable {k V W A : Type*}
+variable [Field k] [LinearOrder k] [IsOrderedRing k]
+variable [AddCommGroup V] [Module k V]
+variable [AddCommGroup W] [Module k W]
+variable [AddTorsor V A]
+
+variable (k) in
+def Convex.Set.recessionCone (P : Set A) : PointedCone k V where
+  carrier := {v : V | ∀x ∈ P, ∀a : 𝕜, 0 ≤ a → a • v +ᵥ x ∈ P }
+  sorry -- proofs that the carrier is a cone
+\end{lstlisting}
+
+We have defined the recession cone only for fields with a linear order.
+
+\subsection{Minkowski--Weyl}
+\label{subsec:mw:minkowski-weyl}
+
+% TODO
